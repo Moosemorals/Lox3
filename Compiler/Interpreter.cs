@@ -6,21 +6,58 @@ using System.Threading.Tasks;
 
 
 namespace Compiler {
-    public class Interpreter : Expr.IVisitor<object?> {
+    public class Interpreter : Expr.IVisitor<object?>, Stmt.IVisitor<object?> {
 
-        private readonly IErrorReporter _log;
+        private readonly IOutputStuff _log;
+        private Environment _env = new Environment();
 
-        public Interpreter(IErrorReporter log) {
+        public Interpreter(IOutputStuff log) {
             _log = log;
         }
 
-        public object? Interpret(Expr expr) {
+        public void Interpret(IList<Stmt> statements) {
             try {
-                return Evaluate(expr);
+                foreach (Stmt stmt in statements) {
+                    Execute(stmt);
+                }
             } catch (RuntimeError ex) {
                 _log.ReportError(ex.Token, ex.Message);
-            } 
+            }
+        }
+
+        #region Statements
+
+        public object? VisitBlockStmt(Stmt.Block stmt) {
+            ExecuteBlock(stmt.Statements, new Environment(_env));
             return null;
+
+        }
+
+        public object? VisitExpressionStmt(Stmt.Expression stmt) => Evaluate(stmt.Expr);
+        
+        public object? VisitPrintStmt(Stmt.Print stmt) { 
+            object? value = Evaluate(stmt.Expr);
+            _log.PrintValue(value);
+            return null;
+        }
+
+        public object? VisitVarStmt(Stmt.Var stmt) {
+            object? value = null;
+            if (stmt.Initilizer != null) {
+                value = Evaluate(stmt.Initilizer);
+            }
+
+            _env.Define(stmt.Name, value);
+            return null;
+        }
+        #endregion
+
+        #region Expressions
+
+        public object? VisitAssignExpr(Expr.Assign expr) {
+            object? value = Evaluate(expr.Value);
+            _env.Assign(expr.Name, value);
+            return value;
         }
 
         public object? VisitBinaryExpr(Expr.Binary expr) {
@@ -62,9 +99,9 @@ namespace Compiler {
                 if (left is string && right is string) {
                     return (string)left + (string)right;
                 }
-                throw new RuntimeError(expr.Op, "Operands must both be numbers or strings."); 
-            } 
-            return null; 
+                throw new RuntimeError(expr.Op, "Operands must both be numbers or strings.");
+            }
+            return null;
         }
 
         public object? VisitGroupingExpr(Expr.Grouping expr) => Evaluate(expr.Expression);
@@ -85,6 +122,31 @@ namespace Compiler {
             }
 
             return null;
+        }
+
+        public object? VisitVariableExpr(Expr.Variable expr) {
+            return _env.Get(expr.Name);            
+        }
+        #endregion
+
+        #region Support
+
+        private void Execute(Stmt stmt) {
+            stmt.Accept(this);
+        }
+
+        private void ExecuteBlock(IList<Stmt> statements, Environment environment) { 
+            Environment previous = _env;
+            try {
+                _env = environment;
+
+                foreach (Stmt s in statements) {
+                    Execute(s);
+                }
+
+            } finally {
+                _env = previous;
+            }
         }
 
         private static bool IsTruthy(object? obj) {
@@ -115,17 +177,15 @@ namespace Compiler {
             }
             throw new RuntimeError(op, "Operands must be numbers.");
         }
-    }
 
+        internal class RuntimeError : Exception {
+            public Token Token { get; }
 
-    internal class RuntimeError : Exception {
-        public Token Token { get; }
-
-        internal RuntimeError(Token token, string message) : base(message) {
-            if (token == null) {
-                throw new ArgumentNullException(nameof(token));
+            internal RuntimeError(Token token, string message) : base(message) {
+                Token = token ?? throw new ArgumentNullException(nameof(token));
             }
-            Token = token;
         }
+
+        #endregion
     }
 }

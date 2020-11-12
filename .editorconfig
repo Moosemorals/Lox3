@@ -2,3 +2,15 @@
 
 # IDE0022: Use expression body for methods
 dotnet_diagnostic.IDE0022.severity = silent
+
+# IDE0021: Use expression body for constructors
+dotnet_diagnostic.IDE0021.severity = silent
+
+# IDE0038: Use pattern matching
+dotnet_diagnostic.IDE0038.severity = none
+
+# IDE0075: Simplify conditional expression
+dotnet_diagnostic.IDE0075.severity = silent
+
+# IDE0046: Convert to conditional expression
+dotnet_diagnostic.IDE0046.severity = silent

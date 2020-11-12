@@ -8,7 +8,9 @@ using Compiler;
 
 
 namespace Tests.Compiler {
-    internal class NullLogger : IOutputStuff {
+    internal class PrintCaptureLogger : IOutputStuff {
+        public object? Result {get;set; }
+
         public void ReportError(string message) {
             // Does nothing
         }
@@ -18,7 +20,7 @@ namespace Tests.Compiler {
         }
 
         public void PrintValue(object? value) {
-            // does nothing
+            Result = value;
         }
     }
 }

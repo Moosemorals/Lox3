@@ -10,7 +10,7 @@ namespace Compiler {
 
         private readonly string _source;
         private readonly List<Token> _tokens;
-        private readonly IErrorReporter _log;
+        private readonly IOutputStuff _log;
         private readonly IDictionary<string, TokenType> _keywords = new Dictionary<string, TokenType>() {
 
             { "and", TokenType.And },
@@ -33,7 +33,7 @@ namespace Compiler {
         private int _start;
         private int _current;
 
-        public Tokeniser(IErrorReporter log, string source) {
+        public Tokeniser(IOutputStuff log, string source) {
             _log = log;
             _source = source;
             _tokens = new List<Token>();

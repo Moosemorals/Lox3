@@ -17,35 +17,33 @@ namespace Tests.Compiler {
         [TestCaseSource(nameof(InterpreterTestCases))]
         public void InterpreterTest(string input, object? expected) {
 
-            IErrorReporter log = new NullLogger();
+            PrintCaptureLogger log = new PrintCaptureLogger();
 
             IList<Token> tokens = new Tokeniser(log, input).ScanTokens();
 
-            Expr? expression = new Parser(log, tokens).Parse();
+            IList<Stmt> expressions = new Parser(log, tokens).Parse();
 
-            if (expression == null) {
-                Assert.IsNotNull(expression);
-                return;
-            }
+             new Interpreter(log).Interpret(expressions);
 
-            object? actual = new Interpreter(log).Interpret(expression);
-
-            Assert.AreEqual(expected, actual);
+            Assert.AreEqual(expected, log.Result);
         }
 
 
         public readonly static object[] InterpreterTestCases = new object[] {
-            new object[] { "1", 1d },
-            new object[] { "1 + 1", 2d },
-            new object[] { "2 * 3", 6d },
-            new object[] { "15 < 12", false },
-            new object[] { "12 < 15", true },
-            new object?[] { "nil", null },
-            new object[] { "2 + 3 * 2", 8d },
-            new object[] { "(2 + 3) * 2", 10d },
-            new object[] { "!(2 > 3)", true },
-            new object[] { "\"a\" + \"b\"", "ab" },
-            new object?[] { "\"a\" + 2", null },
+            new object[] { "print 1;", 1d },
+            new object[] { "print 1 + 1;", 2d },
+            new object[] { "print 2 * 3;", 6d },
+            new object[] { "print 15 < 12;", false },
+            new object[] { "print 12 < 15;", true },
+            new object?[] { "print nil;", null },
+            new object[] { "print 2 + 3 * 2;", 8d },
+            new object[] { "print (2 + 3) * 2;", 10d },
+            new object[] { "print !(2 > 3);", true },
+            new object[] { "print \"a\" + \"b\";", "ab" },
+            new object?[] { "print \"a\" + 2;", null },
+            new object[] { "var a = 2; var b = 3; print  a + b;", 5d },
+            new object[] { "var a = 2; var b = 3; a =  a + b; print a;", 5d },
+            new object[] { "var a = 2; { var b = 3; a =  a + b; } print a;", 5d },
 
         };
     }
