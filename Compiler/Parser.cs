@@ -32,11 +32,13 @@ namespace Compiler {
             return statements;
         }
 
-
         #region Statements
 
         private Stmt? Declaration() {
             try {
+                if (Match(Fun)) {
+                    return Function("function");
+                }
                 if (Match(Var)) {
                     return VarDeclaration();
                 }
@@ -47,9 +49,43 @@ namespace Compiler {
             }
         }
 
+        public Stmt.Function Function(string kind) {
+            Token name = Consume(Identifier, $"Expected {kind} name.");
+            Consume(LeftParen, $"Expected '(' after {kind} name.");
+
+            List<Token> parameters = new List<Token>();
+            if (!Check(RightParen)) {
+                do {
+                    if (parameters.Count >= 255) {
+                        Error(Peek(), "Can't have more than 255 parameters.");
+                    }
+
+                    parameters.Add(Consume(Identifier, "Expected parameter name."));
+                } while (Match(Comma));
+            }
+
+            Consume(RightParen, "Expected ')' after parameters.");
+
+            Consume(LeftBrace, $"Expect '{{' before {kind} body.");
+            IList<Stmt> body = Block();
+            return new Stmt.Function(name, parameters, body);
+        }
+
         private Stmt Statement() {
+            if (Match(For)) {
+                return ForStatement();
+            }
+            if (Match(If)) {
+                return IfStatement();
+            }
             if (Match(Print)) {
                 return PrintStatement();
+            }
+            if (Match(TokenType.Return)) {
+                return ReturnStatement();
+            }
+            if (Match(While)) {
+                return WhileStatement();
             }
             if (Match(LeftBrace)) {
                 return new Stmt.Block(Block());
@@ -77,10 +113,74 @@ namespace Compiler {
             return new Stmt.Expression(expr);
         }
 
+        private Stmt ForStatement() {
+            Consume(LeftParen, "Expect '(' after 'for'.");
+
+            Stmt? initializer;
+            if (Match(Semicolon)) {
+                initializer = null;
+            } else {
+                initializer = Match(Var) ? VarDeclaration() : ExpressionStatement();
+            }
+
+            Expr? condition = null;
+            if (!Check(Semicolon)) {
+                condition = Expression();
+            }
+            Consume(Semicolon, "Expect ';' after for condition.");
+
+            Expr? increment = null;
+            if (!Check(RightParen)) {
+                increment = Expression();
+            }
+            Consume(RightParen, "Expect ')' after for clauses.");
+
+            Stmt body = Statement();
+            if (increment != null) {
+                body = new Stmt.Block(new List<Stmt>() { body, new Stmt.Expression(increment) } ); 
+            }
+
+            if (condition == null) {
+                condition = new Expr.Literal(true);
+            }
+            body = new Stmt.While(condition, body);
+
+            if (initializer != null) {
+                body = new Stmt.Block(new List<Stmt>() { initializer, body });
+            }
+
+            return body;
+        }
+
+        private Stmt IfStatement() {
+            Consume(LeftParen, "Expected '(' after 'if'.");
+            Expr condition = Expression();
+            Consume(RightParen, "Expect ')' after 'if' condition.");
+
+            Stmt thenBranch = Statement();
+            Stmt? elseBranch = null;
+            if (Match(Else)) {
+                elseBranch = Statement();
+            }
+
+            return new Stmt.If(condition, thenBranch, elseBranch);
+        }
+
         private Stmt PrintStatement() {
             Expr value = Expression();
             Consume(Semicolon, "Expected ';' after value.");
             return new Stmt.Print(value);
+        }
+
+        private Stmt ReturnStatement() {
+            Token keyword = Previous();
+            Expr? value = null;
+            if (!Check(Semicolon)) {
+                value = Expression();
+            }
+
+            Consume(Semicolon, "Expected ';' after return expression.");
+            return new Stmt.Return(keyword, value);
         }
 
         private Stmt VarDeclaration() {
@@ -93,10 +193,16 @@ namespace Compiler {
 
             Consume(Semicolon, "Expected ';' after variable declaration.");
             return new Stmt.Var(name, initializer);
-
-
         }
 
+        private Stmt WhileStatement() {
+            Consume(LeftParen, "Expect '(' after 'while'.");
+            Expr condition = Expression();
+            Consume(RightParen, "Expect ')' after while condition.");
+            Stmt body = Statement();
+
+            return new Stmt.While(condition, body);
+        }
         #endregion
 
         #region Expression
@@ -106,7 +212,7 @@ namespace Compiler {
         }
 
         private Expr Assignment() {
-            Expr expr = Equality();
+            Expr expr = Or();
 
             if (Match(Equal)) {
                 Token equals = Previous();
@@ -121,16 +227,20 @@ namespace Compiler {
 
             return expr;
         }
+        
+        private Expr Or() { return GenericLogical(And, TokenType.Or); }
 
-        private Expr Equality() { return GenericBool(Comparison, EqualEqual, BangEqual); }
+        private Expr And() { return GenericLogical(Equality, TokenType.And); }
 
-        private Expr Comparison() { return GenericBool(Term, Greater, GreaterEqual, Less, LessEqual); }
+        private Expr Equality() { return GenericBinary(Comparison, EqualEqual, BangEqual); }
 
-        private Expr Term() { return GenericBool(Factor, Minus, Plus); }
+        private Expr Comparison() { return GenericBinary(Term, Greater, GreaterEqual, Less, LessEqual); }
 
-        private Expr Factor() { return GenericBool(Unary, Slash, Star); }
+        private Expr Term() { return GenericBinary(Factor, Minus, Plus); }
 
-        private Expr GenericBool(Func<Expr> fn, params TokenType[] types) {
+        private Expr Factor() { return GenericBinary(Unary, Slash, Star); }
+
+        private Expr GenericBinary(Func<Expr> fn, params TokenType[] types) {
             Expr expr = fn(); 
             while (Match(types)) {
                 Token op = Previous();
@@ -140,13 +250,55 @@ namespace Compiler {
             return expr; 
         }
 
+        private Expr GenericLogical(Func<Expr> fn, params TokenType[] types) {
+            Expr expr = fn(); 
+            while (Match(types)) {
+                Token op = Previous();
+                Expr right = fn();
+                expr = new Expr.Logical(expr, op, right);
+            } 
+            return expr; 
+        }
+
+
         private Expr Unary() {
             if (Match(Bang, Minus)) {
                 Token op = Previous();
                 Expr right = Unary();
                 return new Expr.Unary(op, right);
             }
-            return Primary();
+            return Call();
+        }
+
+        private Expr Call() {
+            Expr expr = Primary();
+
+            while (true) {
+                if (Match(LeftParen)) {
+                    expr = FinishCall(expr);
+                } else {
+                    break;
+                }
+            }
+
+            return expr;
+        }
+
+        private Expr FinishCall(Expr callee) {
+            List<Expr> arguments = new List<Expr>();
+
+            if (!Check(RightParen)) {
+                if (arguments.Count >= 255) {
+                    Error(Peek(), "Function can't have more than 255 arguments.");
+                }
+                do {
+                    arguments.Add(Expression());
+                } while (Match(Comma));
+            }
+
+            Token paren = Consume(RightParen, "Expected ')' after function arguments.");
+
+            return new Expr.Call(callee, paren, arguments);
         }
 
         private Expr Primary() {
@@ -222,7 +374,7 @@ namespace Compiler {
                 case Fun:
                 case If:
                 case Print:
-                case Return:
+                case TokenType.Return:
                 case Var:
                 case While:
                     return;

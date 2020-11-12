@@ -33,6 +33,17 @@ namespace Compiler {
             throw new Interpreter.RuntimeError(name, $"Undefined variable '{name}'.");
         }
 
+        public void Define(string name, object? value) { 
+            if (!_values.ContainsKey(name)) {
+                _values.Add(name, value);
+            } else {
+                throw new Interpreter.RuntimeError(
+                    new Token(TokenType.Identifier, name, null, 0),
+                    $"Attempt to redefine variable '{name}'."
+                );
+            }
+        }
+
         public void Define(Token name, object? value) {
             if (!_values.ContainsKey(name.Lexeme)) {
                 _values.Add(name.Lexeme, value);

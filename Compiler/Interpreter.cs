@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,10 +11,15 @@ namespace Compiler {
     public class Interpreter : Expr.IVisitor<object?>, Stmt.IVisitor<object?> {
 
         private readonly IOutputStuff _log;
-        private Environment _env = new Environment();
+        public readonly Environment globals;
+        private Environment _env;
 
         public Interpreter(IOutputStuff log) {
+            globals = new Environment();
+            _env = globals;
             _log = log;
+
+            globals.Define("clock", new StdLib.Clock());
         }
 
         public void Interpret(IList<Stmt> statements) {
@@ -30,15 +37,39 @@ namespace Compiler {
         public object? VisitBlockStmt(Stmt.Block stmt) {
             ExecuteBlock(stmt.Statements, new Environment(_env));
             return null;
-
         }
 
         public object? VisitExpressionStmt(Stmt.Expression stmt) => Evaluate(stmt.Expr);
-        
-        public object? VisitPrintStmt(Stmt.Print stmt) { 
+
+        public object? VisitFunctionStmt(Stmt.Function stmt) {
+            LoxFunction function = new LoxFunction(stmt, _env);
+            _env.Define(stmt.Name.Lexeme, function);
+            return null;
+        }
+
+        public object? VisitIfStmt(Stmt.If stmt) {
+            if (IsTruthy(Evaluate(stmt.Condition))) {
+                Execute(stmt.ThenBranch);
+            } else if (stmt.ElseBranch != null) {
+                Execute(stmt.ElseBranch);
+            }
+
+            return null;
+        }
+
+        public object? VisitPrintStmt(Stmt.Print stmt) {
             object? value = Evaluate(stmt.Expr);
             _log.PrintValue(value);
             return null;
+        }
+
+        public object? VisitReturnStmt(Stmt.Return stmt) {
+            object? value = null;
+            if (stmt.Value != null) {
+                value = Evaluate(stmt.Value);
+            }
+
+            throw new Return(value);
         }
 
         public object? VisitVarStmt(Stmt.Var stmt) {
@@ -50,6 +81,14 @@ namespace Compiler {
             _env.Define(stmt.Name, value);
             return null;
         }
+
+        public object? VisitWhileStmt(Stmt.While stmt) {
+            while (IsTruthy(Evaluate(stmt.Condition))) {
+                Execute(stmt.Body);
+            }
+            return null;
+        }
+
         #endregion
 
         #region Expressions
@@ -104,9 +143,40 @@ namespace Compiler {
             return null;
         }
 
+        public object? VisitCallExpr(Expr.Call expr) {
+            object? callee = Evaluate(expr.Callee);
+
+            IList<object?> arguments = expr.Arguments
+                .Select(e => Evaluate(e))
+                .ToList();
+
+            if (callee is ILoxCallable function) {
+                if (arguments.Count != function.Arity) {
+                    throw new RuntimeError(expr.Paren, $"Expected {function.Arity} argument(s) but got {arguments.Count} instead.");
+                }
+                return function.Call(this, arguments);
+            }
+            throw new RuntimeError(expr.Paren, "Can only call functions and classes");
+        }
+
         public object? VisitGroupingExpr(Expr.Grouping expr) => Evaluate(expr.Expression);
 
         public object? VisitLiteralExpr(Expr.Literal expr) => expr.Value;
+
+        public object? VisitLogicalExpr(Expr.Logical expr) {
+            object? left = Evaluate(expr.Left);
+
+            if (expr.Op.Type == TokenType.Or) {
+                if (IsTruthy(left)) {
+                    return left;
+                }
+            } else {
+                if (!IsTruthy(left)) {
+                    return left;
+                }
+            }
+            return Evaluate(expr.Right);
+        }
 
         public object? VisitUnaryExpr(Expr.Unary expr) {
             object? right = Evaluate(expr.Right);
@@ -125,7 +195,7 @@ namespace Compiler {
         }
 
         public object? VisitVariableExpr(Expr.Variable expr) {
-            return _env.Get(expr.Name);            
+            return _env.Get(expr.Name);
         }
         #endregion
 
@@ -135,7 +205,7 @@ namespace Compiler {
             stmt.Accept(this);
         }
 
-        private void ExecuteBlock(IList<Stmt> statements, Environment environment) { 
+        public void ExecuteBlock(IList<Stmt> statements, Environment environment) {
             Environment previous = _env;
             try {
                 _env = environment;
@@ -187,5 +257,15 @@ namespace Compiler {
         }
 
         #endregion
+    }
+
+    public class Return : Exception {
+
+        public object? Value {get; }
+
+        public Return(object? value) : base() {
+            Value = value;
+        }
+
     }
 }
