@@ -30,14 +30,18 @@ namespace Compiler {
                 return;
             }
 
-            throw new Interpreter.RuntimeError(name, $"Undefined variable '{name}'.");
+            throw new RuntimeError(name, $"Undefined variable '{name}'.");
         }
 
-        public void Define(string name, object? value) { 
+        public void AssignAt(int distance, Token name, object? value) {
+            Ancestor(distance)._values[name.Lexeme] = value;
+        }
+
+        public void Define(string name, object? value) {
             if (!_values.ContainsKey(name)) {
                 _values.Add(name, value);
             } else {
-                throw new Interpreter.RuntimeError(
+                throw new RuntimeError(
                     new Token(TokenType.Identifier, name, null, 0),
                     $"Attempt to redefine variable '{name}'."
                 );
@@ -48,7 +52,7 @@ namespace Compiler {
             if (!_values.ContainsKey(name.Lexeme)) {
                 _values.Add(name.Lexeme, value);
             } else {
-                throw new Interpreter.RuntimeError(name, $"Attempt to redefine variable '{name.Lexeme}'.");
+                throw new RuntimeError(name, $"Attempt to redefine variable '{name.Lexeme}'.");
             }
         }
 
@@ -61,7 +65,25 @@ namespace Compiler {
                 return Enclosing.Get(name);
             }
 
-            throw new Interpreter.RuntimeError(name, $"Undefined variable '{name.Lexeme}'.");
+            throw new RuntimeError(name, $"Undefined variable '{name.Lexeme}'.");
+        }
+
+        public object? GetAt(int distance, string name) {
+            return Ancestor(distance)._values[name];
+        }
+
+        private Environment Ancestor(int distance) {
+            Environment? result = this;
+            for (int i = 0; i < distance; i += 1) {
+                if (result == null) {
+                    throw new NullReferenceException("Environment has no parent");
+                }
+                result = result.Enclosing;
+            }
+            if (result == null) {
+                throw new NullReferenceException("Environment has no parent");
+            }
+            return result;
         }
     }
 }

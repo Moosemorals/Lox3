@@ -11,6 +11,7 @@ namespace Compiler {
     public class Interpreter : Expr.IVisitor<object?>, Stmt.IVisitor<object?> {
 
         private readonly IOutputStuff _log;
+        private readonly IDictionary<Expr, int> _locals = new Dictionary<Expr, int>();
         public readonly Environment globals;
         private Environment _env;
 
@@ -95,7 +96,14 @@ namespace Compiler {
 
         public object? VisitAssignExpr(Expr.Assign expr) {
             object? value = Evaluate(expr.Value);
-            _env.Assign(expr.Name, value);
+
+            if (_locals.ContainsKey(expr)) {
+                _env.AssignAt(_locals[expr], expr.Name, value);
+            } else {
+                globals.Assign(expr.Name, value);
+            }
+
+
             return value;
         }
 
@@ -195,7 +203,7 @@ namespace Compiler {
         }
 
         public object? VisitVariableExpr(Expr.Variable expr) {
-            return _env.Get(expr.Name);
+            return LookupVariable(expr.Name, expr);
         }
         #endregion
 
@@ -219,6 +227,21 @@ namespace Compiler {
             }
         }
 
+        private object? Evaluate(Expr expr) {
+            return expr.Accept(this);
+        }
+
+        private object? LookupVariable(Token name, Expr expr) {
+            if (_locals.ContainsKey(expr)) {
+                return _env.GetAt(_locals[expr], name.Lexeme);
+            }
+            return globals.Get(name);
+        }
+
+        internal void Resolve(Expr expr, int depth) {
+            _locals.Add(expr, depth);
+        }
+
         private static bool IsTruthy(object? obj) {
             return obj != null && (obj is not bool b || b);
         }
@@ -228,10 +251,6 @@ namespace Compiler {
                 return true;
             }
             return a == null ? true : a.Equals(b);
-        }
-
-        private object? Evaluate(Expr expr) {
-            return expr.Accept(this);
         }
 
         private static void CheckNumberOperand(Token op, object? obj) {
@@ -248,20 +267,21 @@ namespace Compiler {
             throw new RuntimeError(op, "Operands must be numbers.");
         }
 
-        internal class RuntimeError : Exception {
-            public Token Token { get; }
-
-            internal RuntimeError(Token token, string message) : base(message) {
-                Token = token ?? throw new ArgumentNullException(nameof(token));
-            }
-        }
-
         #endregion
     }
 
+    internal class RuntimeError : Exception {
+        public Token Token { get; }
+
+        internal RuntimeError(Token token, string message) : base(message) {
+            Token = token ?? throw new ArgumentNullException(nameof(token));
+        }
+    }
+
+
     public class Return : Exception {
 
-        public object? Value {get; }
+        public object? Value { get; }
 
         public Return(object? value) : base() {
             Value = value;

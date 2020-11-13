@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 using Compiler;
@@ -15,7 +16,7 @@ namespace Tests.Compiler {
         [TestCaseSource(nameof(SimpleTestCases))]
         public void SimpleTests(string input, IList<Token> expected) {
 
-            Tokeniser t = new (new NullLogger(), input);
+            Tokeniser t = new (new OutputLogger(new StringWriter()), input);
 
             IList<Token> actual = t.ScanTokens();
 

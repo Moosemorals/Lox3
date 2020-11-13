@@ -27,7 +27,7 @@ namespace Compiler {
             public override T Accept<T>(IVisitor<T> visitor) => visitor.VisitBinaryExpr(this);
         }
 
-        public record Call(Expr Callee, Token Paren, List<Expr> Arguments) : Expr {
+        public record Call(Expr Callee, Token Paren, IList<Expr> Arguments) : Expr {
             public override T Accept<T>(IVisitor<T> visitor) => visitor.VisitCallExpr(this); 
         }
 
