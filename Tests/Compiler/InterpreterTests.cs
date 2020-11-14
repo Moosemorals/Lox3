@@ -17,8 +17,6 @@ namespace Tests.Compiler {
 
         [TestCaseSource(nameof(InterpreterTestCases))]
         public void InterpreterTest(string input, object? expected) {
-
-
             StringWriter writer = new StringWriter();
 
             OutputLogger log = new OutputLogger(writer);
@@ -71,6 +69,8 @@ namespace Tests.Compiler {
             new object[] { "print true or false;", "True" },
             new object[] { "print false or true;", "True" },
             new object[] { "print false or false;", "False" },
+
+            new object[] { "print \"hello\"[2];", "l" },
 
             new object[] { "fun say(word) { print \"Hello \" + word; } say(\"world\");", "Hello world" },
             new object[] { "fun say() { print \"Hello\"; } say();", "Hello" },

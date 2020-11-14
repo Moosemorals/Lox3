@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 
 namespace Compiler {
-    public class Interpreter : Expr.IVisitor<object?>, Stmt.IVisitor<object?> {
+    public class Interpreter : Expr.IVisitor<LoxValue>, Stmt.IVisitor<object?> {
 
         private readonly IOutputStuff _log;
         private readonly IDictionary<Expr, int> _locals = new Dictionary<Expr, int>();
@@ -20,7 +20,7 @@ namespace Compiler {
             _env = globals;
             _log = log;
 
-            globals.Define("clock", new StdLib.Clock());
+            globals.Define("clock", LoxValue.New(new StdLib.Clock()));
         }
 
         public void Interpret(IList<Stmt> statements) {
@@ -43,7 +43,7 @@ namespace Compiler {
         public object? VisitExpressionStmt(Stmt.Expression stmt) => Evaluate(stmt.Expr);
 
         public object? VisitFunctionStmt(Stmt.Function stmt) {
-            LoxFunction function = new LoxFunction(stmt, _env);
+            LoxValue function = LoxValue.New( new LoxFunction(stmt, _env));
             _env.Define(stmt.Name.Lexeme, function);
             return null;
         }
@@ -59,13 +59,13 @@ namespace Compiler {
         }
 
         public object? VisitPrintStmt(Stmt.Print stmt) {
-            object? value = Evaluate(stmt.Expr);
+            LoxValue value = Evaluate(stmt.Expr);
             _log.PrintValue(value);
             return null;
         }
 
         public object? VisitReturnStmt(Stmt.Return stmt) {
-            object? value = null;
+            LoxValue value = LoxValue.Nil;
             if (stmt.Value != null) {
                 value = Evaluate(stmt.Value);
             }
@@ -74,7 +74,7 @@ namespace Compiler {
         }
 
         public object? VisitVarStmt(Stmt.Var stmt) {
-            object? value = null;
+            LoxValue value = LoxValue.Nil;
             if (stmt.Initilizer != null) {
                 value = Evaluate(stmt.Initilizer);
             }
@@ -94,8 +94,8 @@ namespace Compiler {
 
         #region Expressions
 
-        public object? VisitAssignExpr(Expr.Assign expr) {
-            object? value = Evaluate(expr.Value);
+        public LoxValue VisitAssignExpr(Expr.Assign expr) {
+            LoxValue value = Evaluate(expr.Value);
 
             if (_locals.ContainsKey(expr)) {
                 _env.AssignAt(_locals[expr], expr.Name, value);
@@ -103,62 +103,60 @@ namespace Compiler {
                 globals.Assign(expr.Name, value);
             }
 
-
             return value;
         }
 
-        public object? VisitBinaryExpr(Expr.Binary expr) {
-            object? left = Evaluate(expr.Left);
-            object? right = Evaluate(expr.Right);
+        public LoxValue VisitBinaryExpr(Expr.Binary expr) {
+            LoxValue left = Evaluate(expr.Left);
+            LoxValue right = Evaluate(expr.Right);
 
             switch (expr.Op.Type) {
             case TokenType.BangEqual:
-                return !IsEqual(left, right);
+                return LoxValue.New(!IsEqual(left, right));
             case TokenType.EqualEqual:
-                return !IsEqual(left, right);
+                return LoxValue.New(IsEqual(left, right));
             case TokenType.Greater:
-#pragma warning disable CS8605 // Unboxing a possibly null value.
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left > (double)right;
+                return (LoxValue.Number)left > (LoxValue.Number)right;
             case TokenType.GreaterEqual:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left >= (double)right;
+                return (LoxValue.Number)left >= (LoxValue.Number)right;
             case TokenType.Less:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left < (double)right;
+                return (LoxValue.Number)left < (LoxValue.Number)right;
             case TokenType.LessEqual:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left <= (double)right;
+                return (LoxValue.Number)left <= (LoxValue.Number)right;
             case TokenType.Minus:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left - (double)right;
+                return (LoxValue.Number)left - (LoxValue.Number)right;
             case TokenType.Slash:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left / (double)right;
+                return (LoxValue.Number)left / (LoxValue.Number)right;
             case TokenType.Star:
                 CheckNumberOperands(expr.Op, left, right);
-                return (double)left * (double)right;
-#pragma warning restore CS8605 // Unboxing a possibly null value.
+                return (LoxValue.Number)left * (LoxValue.Number)right;
             case TokenType.Plus:
-                if (left is double && right is double) {
-                    return (double)left + (double)right;
+                if (left is LoxValue.Number && right is LoxValue.Number) {
+                    return (LoxValue.Number)left + (LoxValue.Number)right;
                 }
-                if (left is string && right is string) {
-                    return (string)left + (string)right;
+                if (left is LoxValue.String && right is LoxValue.String) {
+                    return (LoxValue.String)left + (LoxValue.String)right;
                 }
                 throw new RuntimeError(expr.Op, "Operands must both be numbers or strings.");
             }
-            return null;
+            return LoxValue.Nil;
         }
 
-        public object? VisitCallExpr(Expr.Call expr) {
-            object? callee = Evaluate(expr.Callee);
+        public LoxValue VisitCallExpr(Expr.Call expr) {
+            LoxValue callee = Evaluate(expr.Callee);
 
-            IList<object?> arguments = expr.Arguments
+            IList<LoxValue> arguments = expr.Arguments
                 .Select(e => Evaluate(e))
                 .ToList();
 
-            if (callee is ILoxCallable function) {
+            if (callee is LoxValue.Function f) {
+                ILoxCallable function = f.Value;
                 if (arguments.Count != function.Arity) {
                     throw new RuntimeError(expr.Paren, $"Expected {function.Arity} argument(s) but got {arguments.Count} instead.");
                 }
@@ -167,12 +165,24 @@ namespace Compiler {
             throw new RuntimeError(expr.Paren, "Can only call functions and classes");
         }
 
-        public object? VisitGroupingExpr(Expr.Grouping expr) => Evaluate(expr.Expression);
+        public LoxValue VisitGroupingExpr(Expr.Grouping expr) => Evaluate(expr.Expression);
 
-        public object? VisitLiteralExpr(Expr.Literal expr) => expr.Value;
+        public LoxValue VisitIndexExpr(Expr.Index expr) {
+            LoxValue target = Evaluate(expr.Target);
+            LoxValue index = Evaluate(expr.I);
 
-        public object? VisitLogicalExpr(Expr.Logical expr) {
-            object? left = Evaluate(expr.Left);
+            if (target is ILoxIndexable t && index is LoxValue.Number i) {
+                if (i.Value >= 0 && i.Value < t.Length) {
+                    return t.GetAt(i.Value);
+                }
+            }
+            throw new RuntimeError(expr.Paren, "Invalid target for index expression.");
+        }
+
+        public LoxValue VisitLiteralExpr(Expr.Literal expr) => expr.Value;
+
+        public LoxValue VisitLogicalExpr(Expr.Logical expr) {
+            LoxValue left = Evaluate(expr.Left);
 
             if (expr.Op.Type == TokenType.Or) {
                 if (IsTruthy(left)) {
@@ -186,23 +196,21 @@ namespace Compiler {
             return Evaluate(expr.Right);
         }
 
-        public object? VisitUnaryExpr(Expr.Unary expr) {
-            object? right = Evaluate(expr.Right);
+        public LoxValue VisitUnaryExpr(Expr.Unary expr) {
+            LoxValue right = Evaluate(expr.Right);
 
             switch (expr.Op.Type) {
             case TokenType.Bang:
-                return !IsTruthy(right);
+                return LoxValue.New(!IsTruthy(right));
             case TokenType.Minus:
                 CheckNumberOperand(expr.Op, right);
-#pragma warning disable CS8605 // Unboxing a possibly null value.
-                return -(double)right;
-#pragma warning restore CS8605 // Unboxing a possibly null value.
+                return LoxValue.New(-1 * ((LoxValue.Number)right).Value);
             }
 
-            return null;
+            return LoxValue.Nil;
         }
 
-        public object? VisitVariableExpr(Expr.Variable expr) {
+        public LoxValue VisitVariableExpr(Expr.Variable expr) {
             return LookupVariable(expr.Name, expr);
         }
         #endregion
@@ -227,11 +235,11 @@ namespace Compiler {
             }
         }
 
-        private object? Evaluate(Expr expr) {
+        private LoxValue Evaluate(Expr expr) {
             return expr.Accept(this);
         }
 
-        private object? LookupVariable(Token name, Expr expr) {
+        private LoxValue LookupVariable(Token name, Expr expr) {
             if (_locals.ContainsKey(expr)) {
                 return _env.GetAt(_locals[expr], name.Lexeme);
             }
@@ -242,26 +250,34 @@ namespace Compiler {
             _locals.Add(expr, depth);
         }
 
-        private static bool IsTruthy(object? obj) {
-            return obj != null && (obj is not bool b || b);
-        }
-
-        private static bool IsEqual(object? a, object? b) {
-            if (a == null && b == null) {
+        private static bool IsTruthy(LoxValue obj) {
+            if (obj == LoxValue.Nil) {
+                return false;
+            } else if (obj is LoxValue.Bool) {
+                return obj == LoxValue.True;
+            } else {
                 return true;
             }
-            return a == null ? true : a.Equals(b);
+        }
+
+        private static bool IsEqual(LoxValue a, LoxValue b) {
+            if (a == LoxValue.Nil && b == LoxValue.Nil) {
+                return true;
+            } else if (a == LoxValue.Nil) {
+                return false;
+            }
+            return a == b;
         }
 
         private static void CheckNumberOperand(Token op, object? obj) {
-            if (obj is double) {
+            if (obj is LoxValue.Number) {
                 return;
             }
             throw new RuntimeError(op, "Operand must be a number.");
         }
 
         private static void CheckNumberOperands(Token op, object? left, object? right) {
-            if (left is double && right is double) {
+            if (left is LoxValue.Number && right is LoxValue.Number) {
                 return;
             }
             throw new RuntimeError(op, "Operands must be numbers.");
@@ -281,9 +297,9 @@ namespace Compiler {
 
     public class Return : Exception {
 
-        public object? Value { get; }
+        public LoxValue Value { get; }
 
-        public Return(object? value) : base() {
+        public Return(LoxValue value) : base() {
             Value = value;
         }
 

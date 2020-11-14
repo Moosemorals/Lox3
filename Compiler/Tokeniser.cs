@@ -58,6 +58,8 @@ namespace Compiler {
             case ')': AddToken(TokenType.RightParen); break;
             case '{': AddToken(TokenType.LeftBrace); break;
             case '}': AddToken(TokenType.RightBrace); break;
+            case '[': AddToken(TokenType.LeftSquare); break;
+            case ']': AddToken(TokenType.RightSquare); break;
             case ',': AddToken(TokenType.Comma); break;
             case '.': AddToken(TokenType.Dot); break;
             case '-': AddToken(TokenType.Minus); break;

@@ -110,6 +110,12 @@ namespace Compiler {
             return null;
         }
 
+        public object? VisitIndexExpr(Expr.Index expr) {
+            Resolve(expr.Target);
+            Resolve(expr.I);
+            return null;
+        }
+
         public object? VisitLiteralExpr(Expr.Literal expr) => null;
 
         public object? VisitLogicalExpr(Expr.Logical expr) {

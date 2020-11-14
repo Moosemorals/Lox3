@@ -10,8 +10,8 @@ namespace Compiler {
         public class Clock : ILoxCallable {
             public int Arity => 0;
 
-            public object? Call(Interpreter interpreter, IList<object?> arguments) {
-                return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            public LoxValue Call(Interpreter interpreter, IList<LoxValue> arguments) {
+                return LoxValue.New(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             }
 
             public override string ToString() => "<native fn clock>";

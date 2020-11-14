@@ -28,10 +28,7 @@ namespace Tests.Compiler {
             _writer.WriteLine("Error at '{0}' (char {1}): {2}", token.Lexeme, token.Offset, message);
         }
 
-        public void PrintValue(object? value) {
-            if (value is null) {
-                _writer.Write("nil");
-            }
+        public void PrintValue(LoxValue value) {
             _writer.Write(value);
         }
     }

@@ -7,6 +7,6 @@ using System.Threading.Tasks;
 namespace Compiler {
     public interface ILoxCallable {
         public int Arity {get; }
-        public object? Call(Interpreter interpreter, IList<object?> arguments);
+        public LoxValue Call(Interpreter interpreter, IList<LoxValue> arguments);
     }
 }

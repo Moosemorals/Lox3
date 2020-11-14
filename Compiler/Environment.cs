@@ -9,7 +9,7 @@ namespace Compiler {
 
         public Environment? Enclosing { get; }
 
-        private readonly IDictionary<string, object?> _values = new Dictionary<string, object?>();
+        private readonly IDictionary<string, LoxValue> _values = new Dictionary<string, LoxValue>();
 
         public Environment() {
             Enclosing = null;
@@ -19,7 +19,7 @@ namespace Compiler {
             Enclosing = enclosing;
         }
 
-        public void Assign(Token name, object? value) {
+        public void Assign(Token name, LoxValue value) {
             if (_values.ContainsKey(name.Lexeme)) {
                 _values[name.Lexeme] = value;
                 return;
@@ -33,11 +33,11 @@ namespace Compiler {
             throw new RuntimeError(name, $"Undefined variable '{name}'.");
         }
 
-        public void AssignAt(int distance, Token name, object? value) {
+        public void AssignAt(int distance, Token name, LoxValue value) {
             Ancestor(distance)._values[name.Lexeme] = value;
         }
 
-        public void Define(string name, object? value) {
+        public void Define(string name, LoxValue value) {
             if (!_values.ContainsKey(name)) {
                 _values.Add(name, value);
             } else {
@@ -48,7 +48,7 @@ namespace Compiler {
             }
         }
 
-        public void Define(Token name, object? value) {
+        public void Define(Token name, LoxValue value) {
             if (!_values.ContainsKey(name.Lexeme)) {
                 _values.Add(name.Lexeme, value);
             } else {
@@ -56,7 +56,7 @@ namespace Compiler {
             }
         }
 
-        public object? Get(Token name) {
+        public LoxValue Get(Token name) {
             if (_values.ContainsKey(name.Lexeme)) {
                 return _values[name.Lexeme];
             }
@@ -68,7 +68,7 @@ namespace Compiler {
             throw new RuntimeError(name, $"Undefined variable '{name.Lexeme}'.");
         }
 
-        public object? GetAt(int distance, string name) {
+        public LoxValue GetAt(int distance, string name) {
             return Ancestor(distance)._values[name];
         }
 

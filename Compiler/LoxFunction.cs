@@ -17,7 +17,7 @@ namespace Compiler {
 
         public int Arity => _declaration.Params.Count;
 
-        public object? Call(Interpreter interpreter, IList<object?> arguments) {
+        public LoxValue Call(Interpreter interpreter, IList<LoxValue> arguments) {
             Environment environemnt = new Environment(_closure);
 
             for (int i =0; i < _declaration.Params.Count; i += 1) {
@@ -30,7 +30,7 @@ namespace Compiler {
                 return returnValue.Value;
             }
 
-            return null;
+            return LoxValue.Nil;
         }
 
         public override string ToString() => $"<fn {_declaration.Name.Lexeme}>";

@@ -141,7 +141,7 @@ namespace Compiler {
             }
 
             if (condition == null) {
-                condition = new Expr.Literal(true);
+                condition = new Expr.Literal(LoxValue.True);
             }
             body = new Stmt.While(condition, body);
 
@@ -259,8 +259,7 @@ namespace Compiler {
             } 
             return expr; 
         }
-
-
+ 
         private Expr Unary() {
             if (Match(Bang, Minus)) {
                 Token op = Previous();
@@ -276,6 +275,11 @@ namespace Compiler {
             while (true) {
                 if (Match(LeftParen)) {
                     expr = FinishCall(expr);
+                } else if (Match(LeftSquare)) {
+                    Token paren = Previous();
+                    Expr index = Expression();
+                    Consume(RightSquare, "Expected ']' after index.");
+                    expr = new Expr.Index(expr, paren, index);
                 } else {
                     break;
                 }
@@ -302,12 +306,12 @@ namespace Compiler {
         }
 
         private Expr Primary() {
-            if (Match(False)) { return new Expr.Literal(false); }
-            if (Match(True)) { return new Expr.Literal(true); }
-            if (Match(Nil)) { return new Expr.Literal(null); }
+            if (Match(False)) { return new Expr.Literal(LoxValue.False); }
+            if (Match(True)) { return new Expr.Literal(LoxValue.True); }
+            if (Match(Nil)) { return new Expr.Literal(LoxValue.Nil); }
 
             if (Match(Number, TokenType.String)) {
-                return new Expr.Literal(Previous().Literal);
+                return new Expr.Literal(LoxValue.New(Previous().Literal));
             }
 
             if (Match(Identifier)) {

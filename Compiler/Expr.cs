@@ -11,6 +11,7 @@ namespace Compiler {
             T VisitBinaryExpr(Binary expr);
             T VisitCallExpr(Call expr);
             T VisitGroupingExpr(Grouping expr);
+            T VisitIndexExpr(Index expr);
             T VisitLiteralExpr(Literal expr);
             T VisitLogicalExpr(Logical expr);
             T VisitUnaryExpr(Unary expr); 
@@ -35,7 +36,12 @@ namespace Compiler {
             public override T Accept<T>(IVisitor<T> visitor) => visitor.VisitGroupingExpr(this);
         }
 
-        public record Literal(object? Value) : Expr {
+        public record Index(Expr Target, Token Paren, Expr I) : Expr {
+            public override T Accept<T>(IVisitor<T> visitor) => visitor.VisitIndexExpr(this);
+
+        }
+
+        public record Literal(LoxValue Value) : Expr {
             public override T Accept<T>(IVisitor<T> visitor) => visitor.VisitLiteralExpr(this);
         } 
 

@@ -19,7 +19,7 @@ namespace Tests.Compiler {
             // Does nothing
         }
 
-        public void PrintValue(object? value) {
+        public void PrintValue(LoxValue value) {
             Result = value;
         }
     }
